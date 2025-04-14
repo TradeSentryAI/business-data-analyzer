@@ -1,0 +1,7 @@
+Sales Analysis Report
+
+Date Range: 2025-03-01 00:00:00 to 2025-03-05 00:00:00
+Total Sales: 205
+Average Sales: 41.0
+Highest Sales Day: 2025-03-04 00:00:00
+Lowest Sales Day: 2025-03-03 00:00:00

@@ -1,0 +1,9 @@
+Sales Analysis Report
+=====================
+
+Total Sales: $945.00
+Average Sales per Day: $94.50
+Sales Growth: 40.00%
+
+
+Report generated successfully!
