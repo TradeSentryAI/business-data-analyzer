@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Upload Business Data</title>
+</head>
+<body>
+    <h2>📁 Upload Your Business Data</h2>
+    <form method="POST" enctype="multipart/form-data">
+        <label for="file">Choose a file:</label>
+        <input type="file" name="file" id="file" accept=".csv,.xlsx,.xls,.json,.pdf" required><br><br>
+
+        <label for="report_type">Select Report Type:</label>
+        <select name="report_type" id="report_type" required>
+            {% for option in report_options %}
+                <option value="{{ option }}">{{ option.capitalize() }}</option>
+            {% endfor %}
+        </select><br><br>
+
+        <button type="submit">Upload and Analyze</button>
+    </form>
+
+    {% with messages = get_flashed_messages() %}
+    {% if messages %}
+        <ul>
+        {% for message in messages %}
+            <li>{{ message }}</li>
+        {% endfor %}
+        </ul>
+    {% endif %}
+    {% endwith %}
+</body>
+</html>
+

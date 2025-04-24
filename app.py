@@ -1,7 +1,7 @@
-from flask import Flask, request, render_template, redirect, url_for, send_file, flash
+from flask import Flask, request, render_template, redirect, send_file, flash
 import os
 from werkzeug.utils import secure_filename
-from main import analyze_data
+from Release.main import analyze_data
 from datetime import datetime
 
 app = Flask(__name__)
