@@ -1,69 +1,87 @@
-from flask import Flask, request, render_template, redirect, send_file, flash
+from fastapi import FastAPI, File, UploadFile, Form
+from fastapi.responses import HTMLResponse
+from fastapi.middleware.cors import CORSMiddleware
+import shutil
 import os
-from werkzeug.utils import secure_filename
+import logging
 from Release.main import analyze_data
-from datetime import datetime
 
-app = Flask(__name__)
-app.secret_key = '7054a888487090e6fb07fe7e1e0d4708'  # Change in production
+app = FastAPI()
 
-# Folder setup
-UPLOAD_FOLDER = os.path.join(os.getcwd(), 'uploads')
-RESULT_FOLDER = os.path.join(os.getcwd(), 'reports')
-ALLOWED_EXTENSIONS = {'csv', 'xlsx', 'xls', 'json', 'pdf'}
+# Optional: Logging for debugging
+logging.basicConfig(level=logging.INFO)
 
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-app.config['RESULT_FOLDER'] = RESULT_FOLDER
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-# Ensure necessary folders exist
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-os.makedirs(RESULT_FOLDER, exist_ok=True)
+# Serve the HTML form on the root URL
+@app.get("/", response_class=HTMLResponse)
+async def serve_form():
+    html_content = """
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <title>Upload Business Data</title>
+    </head>
+    <body>
+        <h2>📁 Upload Your Business Data</h2>
+        <form action="http://localhost:8000/analyze/" method="POST" enctype="multipart/form-data">
+            <label for="file">Choose a file:</label>
+            <input type="file" name="file" id="file" accept=".csv,.xlsx,.xls,.json" required><br><br>
 
+            <label for="report_type">Select Report Type:</label>
+            <select name="report_type" id="report_type" required>
+                <option value="weekly">Weekly</option>
+                <option value="monthly" selected>Monthly</option>
+                <option value="quarterly">Quarterly</option>
+                <option value="yearly">Yearly</option>
+            </select><br><br>
 
-def allowed_file(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+            <button type="submit">Upload and Analyze</button>
+        </form>
+    </body>
+    </html>
+    """
+    return HTMLResponse(content=html_content)
 
+@app.post("/analyze/")
+async def analyze_file(file: UploadFile = File(...), report_type: str = Form("monthly")):
+    try:
+        filename = file.filename.lower()
+        upload_path = f"uploads/{filename}"
+        os.makedirs("uploads", exist_ok=True)
 
-@app.route('/', methods=['GET', 'POST'])
-def index():
-    if request.method == 'POST':
-        report_type = request.form.get('report_type')
-        uploaded_file = request.files.get('file')
+        # ✅ File type validation
+        if not filename.endswith((".csv", ".xlsx", ".xls")):
+            return {"error": "❌ Only CSV or Excel files are supported."}
 
-        if not uploaded_file or uploaded_file.filename == '':
-            flash('❌ No file selected.')
-            return redirect(request.url)
+        # ✅ Report type validation
+        valid_report_types = ["weekly", "monthly", "quarterly", "yearly"]
+        if report_type not in valid_report_types:
+            return {"error": f"❌ Invalid report type. Choose from: {', '.join(valid_report_types)}"}
 
-        if not allowed_file(uploaded_file.filename):
-            flash('❌ Unsupported file type. Please upload CSV, Excel, JSON, or PDF.')
-            return redirect(request.url)
+        # Save file
+        with open(upload_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
 
-        if not report_type:
-            flash('❌ Please select a report type.')
-            return redirect(request.url)
+        logging.info(f"📂 Uploaded: {filename} | 📊 Report type: {report_type}")
 
-        filename = secure_filename(uploaded_file.filename)
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        saved_path = os.path.join(app.config['UPLOAD_FOLDER'], f"{timestamp}_{filename}")
-        uploaded_file.save(saved_path)
+        # Analyze
+        result = analyze_data(upload_path, report_type=report_type)
 
-        try:
-            result = analyze_data(saved_path, report_type)
+        return {
+            "pdf_report": result.get("pdf_report"),
+            "chart_image": result.get("chart_image"),
+            "summary": result.get("summary", "✅ Analysis completed successfully."),
+        }
 
-            if isinstance(result, str) and result.endswith('.pdf') and os.path.exists(result):
-                return send_file(result, as_attachment=True)
-            else:
-                flash(result)
-                return redirect(request.url)
+    except Exception as e:
+        logging.error(f"❌ Error: {e}")
+        return {"error": str(e)}
 
-        except Exception as e:
-            flash(f'❌ Unexpected error during analysis: {e}')
-            return redirect(request.url)
-
-    # Pass reordered options to the frontend
-    report_options = ["weekly", "monthly", "yearly", "quarterly"]
-    return render_template('index.html', report_options=report_options)
-
-
-if __name__ == "__main__":
-    app.run(debug=True)
