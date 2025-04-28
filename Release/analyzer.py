@@ -67,9 +67,13 @@ def generate_report(data, report_type, filename=None):
     if not filename:
         filename = os.path.join(report_dir, 'business_analysis_report.pdf')
 
-    resample_map = {'weekly': 'W', 'monthly': 'M', 'quarterly': 'Q', 'yearly': 'A-DEC'}
+    resample_map = {'weekly': 'W-MON', 'monthly': 'M', 'quarterly': 'Q', 'yearly': 'A-DEC'}
     if report_type not in resample_map:
         raise ValueError("❌ Invalid report type. Choose from weekly, monthly, quarterly, or yearly.")
+
+    # Ensure date column is datetime
+    if not pd.api.types.is_datetime64_any_dtype(data['date']):
+        data['date'] = pd.to_datetime(data['date'], errors='coerce')
 
     data_resampled = data.resample(resample_map[report_type], on='date').sum()
 
@@ -80,9 +84,12 @@ def generate_report(data, report_type, filename=None):
     profit_margin = (profit / total_revenue * 100) if total_revenue > 0 else 0
 
     # Extra metrics
-    highest = data_resampled['sales'].idxmax()
-    lowest = data_resampled['sales'].idxmin()
-    std_dev = data_resampled['sales'].std()
+    if not data_resampled.empty:
+        highest = data_resampled['sales'].idxmax()
+        lowest = data_resampled['sales'].idxmin()
+        std_dev = data_resampled['sales'].std()
+    else:
+        highest = lowest = std_dev = None
 
     # AI Insights
     insights = []
@@ -90,11 +97,12 @@ def generate_report(data, report_type, filename=None):
         insights.append("📌 Profit margins are below 20%. Consider adjusting pricing or reducing costs.")
     if len(data_resampled) > 3 and (data_resampled['sales'].pct_change().dropna() < 0).sum() >= 3:
         insights.append("⚠️ Sales have been dropping for multiple periods. Consider launching promotions.")
-    if data_resampled['sales'].iloc[-1] > data_resampled['sales'].iloc[0]:
-        insights.append("📈 Revenue is increasing over time.")
-    elif data_resampled['sales'].iloc[-1] < data_resampled['sales'].iloc[0]:
-        insights.append("📉 Revenue has decreased over the observed period.")
-    if std_dev > data_resampled['sales'].mean() * 0.5:
+    if len(data_resampled) > 1:
+        if data_resampled['sales'].iloc[-1] > data_resampled['sales'].iloc[0]:
+            insights.append("📈 Revenue is increasing over time.")
+        elif data_resampled['sales'].iloc[-1] < data_resampled['sales'].iloc[0]:
+            insights.append("📉 Revenue has decreased over the observed period.")
+    if std_dev and std_dev > data_resampled['sales'].mean() * 0.5:
         insights.append("📊 Revenue is highly volatile. Consider strategies to stabilize income.")
 
     # PDF generation
@@ -122,12 +130,14 @@ def generate_report(data, report_type, filename=None):
     y -= 0.3 * inch
     c.drawString(inch, y, f"🏆 Profit Margin: {profit_margin:.2f}%")
     y -= 0.3 * inch
-    c.drawString(inch, y, f"🔺 Highest Revenue Period: {highest.strftime('%Y-%m-%d')} (${data_resampled['sales'].max():,.2f})")
-    y -= 0.3 * inch
-    c.drawString(inch, y, f"🔻 Lowest Revenue Period: {lowest.strftime('%Y-%m-%d')} (${data_resampled['sales'].min():,.2f})")
-    y -= 0.3 * inch
-    c.drawString(inch, y, f"📈 Revenue Volatility (Std Dev): ${std_dev:,.2f}")
-    y -= 0.5 * inch
+
+    if highest and lowest:
+        c.drawString(inch, y, f"🔺 Highest Revenue Period: {highest.strftime('%Y-%m-%d')} (${data_resampled['sales'].max():,.2f})")
+        y -= 0.3 * inch
+        c.drawString(inch, y, f"🔻 Lowest Revenue Period: {lowest.strftime('%Y-%m-%d')} (${data_resampled['sales'].min():,.2f})")
+        y -= 0.3 * inch
+        c.drawString(inch, y, f"📈 Revenue Volatility (Std Dev): ${std_dev:,.2f}")
+        y -= 0.5 * inch
 
     if insights:
         c.setFont(font_name, 12)
@@ -146,27 +156,39 @@ def generate_report(data, report_type, filename=None):
 
 # ------------------- Chart Generation ------------------- #
 
-def plot_revenue_trends(data, report_type):
-    if 'sales' not in data.columns:
-        raise ValueError("❌ 'Sales' column is missing. Ensure your file contains revenue data.")
+def plot_revenue_trends(df, report_type='monthly'):
+    import matplotlib.pyplot as plt
+    import pandas as pd
+    import os
+    from Release.analyzer import get_output_paths  # Import get_output_paths properly
 
-    resample_map = {'weekly': 'W', 'monthly': 'M', 'quarterly': 'Q', 'yearly': 'A-DEC'}
-    if report_type not in resample_map:
-        raise ValueError("❌ Invalid report type. Choose from weekly, monthly, quarterly, or yearly.")
+    if 'date' not in df.columns or 'sales' not in df.columns:
+        raise ValueError("Missing 'date' or 'sales' columns in data.")
 
-    revenue_data = data.resample(resample_map[report_type], on='date').sum()
-    _, chart_dir = get_output_paths()
-    chart_path = os.path.join(chart_dir, f'sales_{report_type}_plot.png')
+    df['date'] = pd.to_datetime(df['date'])
+
+    if report_type == 'weekly':
+        df_grouped = df.resample('W-Mon', on='date').sum()
+    elif report_type == 'monthly':
+        df_grouped = df.resample('M', on='date').sum()
+    elif report_type == 'quarterly':
+        df_grouped = df.resample('Q', on='date').sum()
+    elif report_type == 'yearly':
+        df_grouped = df.resample('Y', on='date').sum()
+    else:
+        raise ValueError("Invalid report type. Choose weekly, monthly, quarterly, or yearly.")
+
+    report_dir, chart_dir = get_output_paths()
+    chart_path = os.path.join(chart_dir, f"sales_{report_type}_plot.png")
 
     plt.figure(figsize=(10, 6))
-    plt.bar(revenue_data.index.strftime('%Y-%m-%d'), revenue_data['sales'], color='teal')
-    plt.title(f'Total Sales by {report_type.capitalize()}')
-    plt.xlabel(f'{report_type.capitalize()}')
+    plt.plot(df_grouped.index, df_grouped['sales'], marker='o')
+    plt.title(f'Sales Trends ({report_type.capitalize()})')
+    plt.xlabel('Date')
     plt.ylabel('Sales')
-    plt.grid(True, linestyle='--', alpha=0.5)
-    plt.xticks(rotation=45)
+    plt.grid(True)
     plt.tight_layout()
     plt.savefig(chart_path)
     plt.close()
 
-    print(f"📊 Revenue trend chart saved to {chart_path}")
+    print(f"📊 Sales trend chart saved to {chart_path}")

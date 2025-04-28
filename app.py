@@ -4,14 +4,14 @@ from fastapi.responses import JSONResponse
 import shutil
 import os
 import logging
-from Release.main import analyze_data
+from Release.main import analyze_data  # Importing the updated analyze_data function
 
 app = FastAPI()
 
-# Enable CORS so Wix and other external domains can connect
+# Enable CORS for Wix domain (tradesentryai.com)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["https://business-data-analyzer.onrender.com"],  # Only allow your domain
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -27,14 +27,14 @@ async def upload_file(file: UploadFile = File(...), analysis_type: str = Form("m
         upload_path = f"uploads/{filename}"
         os.makedirs("uploads", exist_ok=True)
 
-        # ✅ File type validation
+        # File type validation
         if not filename.endswith((".csv", ".xlsx", ".xls", ".json")):
             return JSONResponse(
                 content={"error": "❌ Only CSV, Excel, or JSON files are supported."},
                 status_code=400,
             )
 
-        # ✅ Report type validation
+        # Report type validation
         valid_types = ["weekly", "monthly", "quarterly", "yearly"]
         if analysis_type not in valid_types:
             return JSONResponse(
@@ -46,18 +46,16 @@ async def upload_file(file: UploadFile = File(...), analysis_type: str = Form("m
         with open(upload_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
 
-        logging.info(f"📂 Uploaded: {filename} | 📊 Report type: {analysis_type}")
+        # Process the file
+        result = analyze_data(upload_path, analysis_type=analysis_type)  # Pass the correct argument
 
-        # Analyze the file
-        result = analyze_data(upload_path, analysis_type=analysis_type)
-
-        return {
-            "pdf_report": result.get("pdf_report"),
-            "chart_image": result.get("chart_image"),
-            "summary": result.get("summary", "✅ Analysis completed successfully."),
-        }
+        return JSONResponse(
+            content={
+                "pdf_report": result.get("pdf_report", ""),
+                "chart_image": result.get("chart_image", ""),
+                "summary": result.get("summary", "✅ Analysis completed successfully."),
+            }
+        )
 
     except Exception as e:
-        logging.error(f"❌ Server error: {e}")
         return JSONResponse(content={"error": str(e)}, status_code=500)
-

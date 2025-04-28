@@ -3,37 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <title>Upload Business Data</title>
-    <script>
-        // Function to handle form submission via AJAX
-        async function submitForm(event) {
-            event.preventDefault();  // Prevent the default form submission
-
-            let formData = new FormData(document.getElementById("uploadForm"));
-            let response = await fetch("http://localhost:8000/analyze/", {
-                method: "POST",
-                body: formData,
-            });
-
-            let result = await response.json();
-
-            // Display the results on the same page
-            const resultDiv = document.getElementById("result");
-
-            if (result.error) {
-                resultDiv.innerHTML = `<p style="color: red;">Error: ${result.error}</p>`;
-            } else {
-                resultDiv.innerHTML = `
-                    <p>✅ ${result.summary}</p>
-                    <p><a href="${result.pdf_report}" target="_blank">Download PDF Report</a></p>
-                    <p><img src="${result.chart_image}" alt="Chart"></p>
-                `;
-            }
-        }
-    </script>
 </head>
 <body>
     <h2>📁 Upload Your Business Data</h2>
-    <form id="uploadForm" onsubmit="submitForm(event)" enctype="multipart/form-data">
+    <form action="http://localhost:8000/analyze/" method="POST" enctype="multipart/form-data">
         <label for="file">Choose a file:</label>
         <input type="file" name="file" id="file" accept=".csv,.xlsx,.xls,.json" required><br><br>
 
@@ -47,8 +20,5 @@
 
         <button type="submit">Upload and Analyze</button>
     </form>
-
-    <div id="result"></div> <!-- Results will be displayed here -->
-
 </body>
 </html>
