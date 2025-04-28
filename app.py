@@ -4,14 +4,14 @@ from fastapi.responses import JSONResponse
 import shutil
 import os
 import logging
-from Release.main import analyze_data  # Importing the updated analyze_data function
+from Release.main import analyze_data  # Import your updated analyze_data
 
 app = FastAPI()
 
-# Enable CORS for Wix domain (tradesentryai.com)
+# Enable CORS for Wix domain
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://business-data-analyzer.onrender.com"],  # Only allow your domain
+    allow_origins=["https://business-data-analyzer.onrender.com"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -42,12 +42,12 @@ async def upload_file(file: UploadFile = File(...), analysis_type: str = Form("m
                 status_code=400,
             )
 
-        # Save the uploaded file
+        # Save file
         with open(upload_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
 
-        # Process the file
-        result = analyze_data(upload_path, analysis_type=analysis_type)  # Pass the correct argument
+        # Analyze file
+        result = analyze_data(upload_path, analysis_type=analysis_type)
 
         return JSONResponse(
             content={
@@ -59,3 +59,8 @@ async def upload_file(file: UploadFile = File(...), analysis_type: str = Form("m
 
     except Exception as e:
         return JSONResponse(content={"error": str(e)}, status_code=500)
+
+# ✅ Add this small GET route
+@app.get("/")
+async def root():
+    return {"message": "✅ Business Data Analyzer API is running."}
