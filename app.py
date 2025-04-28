@@ -42,11 +42,11 @@ async def upload_file(file: UploadFile = File(...), analysis_type: str = Form("m
                 status_code=400,
             )
 
-        # Save file
+        # Save the uploaded file
         with open(upload_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
 
-        # Analyze file
+        # Analyze the uploaded file
         result = analyze_data(upload_path, analysis_type=analysis_type)
 
         return JSONResponse(
@@ -60,7 +60,7 @@ async def upload_file(file: UploadFile = File(...), analysis_type: str = Form("m
     except Exception as e:
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
-# ✅ Add this small GET route
+# ✅ Add this root GET route for testing
 @app.get("/")
 async def root():
     return {"message": "✅ Business Data Analyzer API is running."}
